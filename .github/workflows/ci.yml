@@ -1,0 +1,92 @@
+name: Reusable CI
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use (leave empty to skip Node.js setup)'
+        type: string
+        default: ''
+      python-version:
+        description: 'Python version to use (leave empty to skip Python setup)'
+        type: string
+        default: ''
+      go-version:
+        description: 'Go version to use (leave empty to skip Go setup)'
+        type: string
+        default: ''
+      working-directory:
+        description: 'Working directory for the workflow steps'
+        type: string
+        default: '.'
+      lint-command:
+        description: 'Command to run for linting (leave empty to skip)'
+        type: string
+        default: ''
+      test-command:
+        description: 'Command to run for tests (leave empty to skip)'
+        type: string
+        default: ''
+      build-command:
+        description: 'Command to run for build (leave empty to skip)'
+        type: string
+        default: ''
+    secrets:
+      token:
+        description: 'GitHub token for authenticated operations'
+        required: false
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        if: ${{ inputs.node-version != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: '${{ inputs.working-directory }}/package-lock.json'
+
+      - name: Set up Python
+        if: ${{ inputs.python-version != '' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Set up Go
+        if: ${{ inputs.go-version != '' }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Install Node.js dependencies
+        if: ${{ inputs.node-version != '' }}
+        run: npm ci
+
+      - name: Install Python dependencies
+        if: ${{ inputs.python-version != '' }}
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+
+      - name: Lint
+        if: ${{ inputs.lint-command != '' }}
+        run: ${{ inputs.lint-command }}
+
+      - name: Build
+        if: ${{ inputs.build-command != '' }}
+        run: ${{ inputs.build-command }}
+
+      - name: Test
+        if: ${{ inputs.test-command != '' }}
+        run: ${{ inputs.test-command }}

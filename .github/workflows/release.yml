@@ -1,0 +1,91 @@
+name: Reusable Release
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        type: string
+        default: '20'
+      working-directory:
+        description: 'Working directory for the workflow steps'
+        type: string
+        default: '.'
+      publish-npm:
+        description: 'Whether to publish to npm'
+        type: boolean
+        default: false
+      draft:
+        description: 'Create the release as a draft'
+        type: boolean
+        default: false
+      prerelease:
+        description: 'Mark the release as a pre-release'
+        type: boolean
+        default: false
+    secrets:
+      NPM_TOKEN:
+        description: 'npm authentication token (required if publish-npm is true)'
+        required: false
+      token:
+        description: 'GitHub token for creating releases'
+        required: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: '${{ inputs.working-directory }}/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.token || secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: release } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: '${{ steps.version.outputs.version }}',
+              name: 'Release ${{ steps.version.outputs.version }}',
+              draft: ${{ inputs.draft }},
+              prerelease: ${{ inputs.prerelease }},
+              generate_release_notes: true,
+            });
+            console.log(`Release created: ${release.html_url}`);
+
+      - name: Publish to npm
+        if: ${{ inputs.publish-npm }}
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
