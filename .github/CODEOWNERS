@@ -1,0 +1,6 @@
+# Set DevOps_Admin as code owner for all files in the .github/workflows directory (their review will be requested)
+.github/workflows/** @abbyyDev/DevOps_Admin
+.github/CODEOWNERS @abbyyDev/DevOps_Admin
+
+# Example: repo owner should add their team for the rest of the codebase.
+# * @abbyyDev/DevOps_Admin
